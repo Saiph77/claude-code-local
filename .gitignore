@@ -16,3 +16,4 @@ bun-debug.log*
 coverage/
 .nyc_output/
 *.tsbuildinfo
+.local/

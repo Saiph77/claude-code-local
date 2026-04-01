@@ -319,11 +319,35 @@ async function configureApiKeyHeaders(
   headers: Record<string, string>,
   isNonInteractiveSession: boolean,
 ): Promise<void> {
-  const token =
-    process.env.ANTHROPIC_AUTH_TOKEN ||
-    (await getApiKeyFromApiKeyHelper(isNonInteractiveSession))
+  const helperToken = await getApiKeyFromApiKeyHelper(isNonInteractiveSession)
+  let token = process.env.ANTHROPIC_AUTH_TOKEN || helperToken
+
+  // apiKeyHelper cache uses a single-space sentinel for failed lookups.
+  // Treat empty/whitespace token values as "missing" so fallback logic can run.
+  if (!token?.trim()) {
+    token = undefined
+  }
+
+  // Some Anthropic-compatible gateways expect Authorization: Bearer <token>
+  // and ignore x-api-key. For non-first-party base URLs, fall back to
+  // ANTHROPIC_API_KEY as a bearer token when no auth token is explicitly set.
+  if (
+    !token &&
+    process.env.ANTHROPIC_API_KEY &&
+    process.env.ANTHROPIC_BASE_URL &&
+    !isFirstPartyAnthropicBaseUrl()
+  ) {
+    token = process.env.ANTHROPIC_API_KEY
+  }
+
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+    const normalized = token
+      .trim()
+      .replace(/^authorization:\s*/i, '')
+      .trim()
+    headers['Authorization'] = normalized.toLowerCase().startsWith('bearer ')
+      ? normalized
+      : `Bearer ${normalized}`
   }
 }
 
